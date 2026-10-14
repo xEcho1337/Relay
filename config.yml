@@ -1,0 +1,22 @@
+network:
+  # What port should the proxy listen to?
+  port: 25565
+
+  # Requires "bungeecord: true" in spigot.yml
+  ip-forwarding: true
+
+  # Proxy-side Mojang auth. Requires backend "online-mode: false"
+  # (the proxy authenticates once, the backend trusts the forwarded UUID).
+  online-mode: true
+
+messages:
+  no-backend-server: "&cNo backend server was specified."
+
+# Here you can add as many servers as you'd like
+servers:
+  lobby:
+    # Id is required if you want to make a specific ip redirect to a specific server
+    id: "lobby.testing.it"
+
+    # The address where the backend server is listening
+    address: "127.0.0.1:25566"

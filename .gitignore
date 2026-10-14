@@ -1,0 +1,19 @@
+# Generated Minecraft server data and runtime files
+workspace/
+
+# Local IDE and operating-system files
+.idea/
+.vscode/
+.DS_Store
+
+# Build and profiling artifacts
+relay
+relay.exe
+*.prof
+*.out
+
+# Logs and temporary files
+*.log
+*.log.*
+tmp/
+temp/
