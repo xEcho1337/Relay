@@ -1,10 +1,14 @@
 package config
 
 import (
+	_ "embed"
 	"os"
 
 	"gopkg.in/yaml.v3"
 )
+
+//go:embed default.yml
+var defaultConfig []byte
 
 type NetworkConfig struct {
 	Port         int  `yaml:"port"`
@@ -26,7 +30,14 @@ func LoadConfig(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 
 	if err != nil {
-		return nil, err
+		if !os.IsNotExist(err) {
+			return nil, err
+		}
+
+		data = defaultConfig
+		if err := os.WriteFile(path, data, 0o644); err != nil {
+			return nil, err
+		}
 	}
 
 	var cfg Config
