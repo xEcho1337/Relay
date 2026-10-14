@@ -1,0 +1,15 @@
+network:
+  # Port exposed by the proxy.
+  port: 25565
+
+  # Requires "bungeecord: true" in spigot.yml.
+  ip-forwarding: true
+
+  # Authenticate players with Mojang before forwarding them.
+  online-mode: true
+
+servers:
+  lobby:
+    # Public host name used to select this backend.
+    id: "lobby.testing.it"
+    address: "127.0.0.1:25566"
