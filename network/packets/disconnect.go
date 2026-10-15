@@ -7,7 +7,6 @@ import (
 	"relay/protocol"
 
 	"relay/network"
-	"relay/sdk"
 )
 
 func configDisconnectID(proto int) (int, bool) {
@@ -72,16 +71,16 @@ func WritePlayDisconnect(w io.Writer, proto int, reason string) error {
 	return writeChatDisconnect(w, id, reason)
 }
 
-func WriteDisconnect(w io.Writer, state sdk.State, proto int, reason string) (bool, error) {
+func WriteDisconnect(w io.Writer, state protocol.State, proto int, reason string) (bool, error) {
 	switch state {
-	case sdk.StateLogin, sdk.StateTransfer:
+	case protocol.StateLogin, protocol.StateTransfer:
 		return true, WriteLoginDisconnect(w, reason)
-	case sdk.StateConfiguration:
+	case protocol.StateConfiguration:
 		if err := WriteConfigDisconnect(w, proto, reason); err != nil {
 			return false, err
 		}
 		return true, nil
-	case sdk.StatePlay:
+	case protocol.StatePlay:
 		if err := WritePlayDisconnect(w, proto, reason); err != nil {
 			return false, err
 		}

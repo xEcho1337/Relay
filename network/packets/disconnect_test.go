@@ -8,7 +8,6 @@ import (
 
 	"relay/network"
 	"relay/protocol"
-	"relay/sdk"
 )
 
 func TestPlayDisconnectID(t *testing.T) {
@@ -68,22 +67,22 @@ func readPacketID(t *testing.T, buf *bytes.Buffer) int {
 
 func TestWriteDisconnectPerState(t *testing.T) {
 	cases := []struct {
-		state    sdk.State
+		state    protocol.State
 		protocol int
 		wantID   int
 	}{
-		{sdk.StateLogin, 47, 0x00},
-		{sdk.StateTransfer, 767, 0x00},
-		{sdk.StateConfiguration, 764, 0x01},
-		{sdk.StateConfiguration, 765, 0x01},
-		{sdk.StateConfiguration, 766, 0x02},
-		{sdk.StateConfiguration, 777, 0x02},
-		{sdk.StatePlay, 47, 0x40},
-		{sdk.StatePlay, 340, 0x1A},
-		{sdk.StatePlay, 760, 0x19},
-		{sdk.StatePlay, 766, 0x1D},
-		{sdk.StatePlay, 770, 0x1C},
-		{sdk.StatePlay, 777, 0x20},
+		{protocol.StateLogin, 47, 0x00},
+		{protocol.StateTransfer, 767, 0x00},
+		{protocol.StateConfiguration, 764, 0x01},
+		{protocol.StateConfiguration, 765, 0x01},
+		{protocol.StateConfiguration, 766, 0x02},
+		{protocol.StateConfiguration, 777, 0x02},
+		{protocol.StatePlay, 47, 0x40},
+		{protocol.StatePlay, 340, 0x1A},
+		{protocol.StatePlay, 760, 0x19},
+		{protocol.StatePlay, 766, 0x1D},
+		{protocol.StatePlay, 770, 0x1C},
+		{protocol.StatePlay, 777, 0x20},
 	}
 	for _, c := range cases {
 		var buf bytes.Buffer
@@ -107,7 +106,7 @@ func TestWriteDisconnectPerState(t *testing.T) {
 }
 
 func TestWriteDisconnectNoPacket(t *testing.T) {
-	for _, s := range []sdk.State{sdk.StateHandshake, sdk.StateStatus, sdk.StateClosed} {
+	for _, s := range []protocol.State{protocol.StateHandshake, protocol.StateStatus, protocol.StateClosed} {
 		var buf bytes.Buffer
 		ok, err := WriteDisconnect(&buf, s, 767, "bye")
 		if err != nil {
@@ -124,7 +123,7 @@ func TestWriteDisconnectNoPacket(t *testing.T) {
 
 func TestWriteDisconnectPlayUnknownProtocol(t *testing.T) {
 	var buf bytes.Buffer
-	ok, err := WriteDisconnect(&buf, sdk.StatePlay, 9999, "bye")
+	ok, err := WriteDisconnect(&buf, protocol.StatePlay, 9999, "bye")
 	if ok {
 		t.Fatal("ok = true for unknown protocol")
 	}
@@ -140,7 +139,7 @@ func TestWriteDisconnectPlayUnknownProtocol(t *testing.T) {
 func TestWriteDisconnectConfigUnknownProtocol(t *testing.T) {
 	for _, proto := range []int{763, 778} {
 		var buf bytes.Buffer
-		ok, err := WriteDisconnect(&buf, sdk.StateConfiguration, proto, "bye")
+		ok, err := WriteDisconnect(&buf, protocol.StateConfiguration, proto, "bye")
 		if ok {
 			t.Fatalf("proto %d: ok = true", proto)
 		}

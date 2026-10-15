@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"relay/protocol"
 	"relay/sdk"
 )
 
@@ -11,7 +12,7 @@ type Connection struct {
 	ID          uint64
 	RemoteAddr  string
 	Protocol    int
-	State       sdk.State
+	State       protocol.State
 	Player      sdk.Player
 	HasPlayer   bool
 	Backend     string
@@ -38,7 +39,7 @@ func (m *Manager) Add(remoteAddr string) Connection {
 	c := Connection{
 		ID:          m.nextID,
 		RemoteAddr:  remoteAddr,
-		State:       sdk.StateHandshake,
+		State:       protocol.StateHandshake,
 		ConnectedAt: uint64(time.Now().UnixMilli()),
 	}
 	m.byID[c.ID] = c
@@ -67,7 +68,7 @@ func (m *Manager) SetProtocol(id uint64, protocol int) bool {
 	return true
 }
 
-func (m *Manager) SetState(id uint64, s sdk.State) bool {
+func (m *Manager) SetState(id uint64, s protocol.State) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -146,7 +147,7 @@ func (m *Manager) Count() int {
 	return len(m.byID)
 }
 
-func (m *Manager) CountInState(s sdk.State) int {
+func (m *Manager) CountInState(s protocol.State) int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	n := 0

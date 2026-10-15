@@ -5,6 +5,7 @@ import (
 	"sync"
 	"testing"
 
+	"relay/protocol"
 	"relay/sdk"
 )
 
@@ -22,7 +23,7 @@ func TestManagerLifecycle(t *testing.T) {
 	m := NewManager()
 
 	status := m.Add("192.0.2.1:1234")
-	if status.State != sdk.StateHandshake {
+	if status.State != protocol.StateHandshake {
 		t.Fatalf("initial state = %v, want handshake", status.State)
 	}
 	if status.HasPlayer {
@@ -35,7 +36,7 @@ func TestManagerLifecycle(t *testing.T) {
 	if !m.SetProtocol(status.ID, 767) {
 		t.Fatal("SetProtocol failed")
 	}
-	if !m.SetState(status.ID, sdk.StateStatus) {
+	if !m.SetState(status.ID, protocol.StateStatus) {
 		t.Fatal("SetState failed")
 	}
 	if !m.SetBackend(status.ID, "127.0.0.1:25566") {
@@ -46,28 +47,28 @@ func TestManagerLifecycle(t *testing.T) {
 	if !ok {
 		t.Fatal("Get failed")
 	}
-	if got.Protocol != 767 || got.State != sdk.StateStatus || got.Backend != "127.0.0.1:25566" {
+	if got.Protocol != 767 || got.State != protocol.StateStatus || got.Backend != "127.0.0.1:25566" {
 		t.Fatalf("Get = %+v, fields not updated", got)
 	}
 	if got.HasPlayer {
 		t.Fatal("status connection must stay player-less")
 	}
-	if m.CountInState(sdk.StateStatus) != 1 {
+	if m.CountInState(protocol.StateStatus) != 1 {
 		t.Fatal("CountInState(status) != 1")
 	}
 
 	login := m.Add("192.0.2.2:2345")
 	m.SetProtocol(login.ID, 767)
-	m.SetState(login.ID, sdk.StateLogin)
+	m.SetState(login.ID, protocol.StateLogin)
 	if !m.SetPlayer(login.ID, testConnPlayer()) {
 		t.Fatal("SetPlayer failed")
 	}
-	m.SetState(login.ID, sdk.StatePlay)
+	m.SetState(login.ID, protocol.StatePlay)
 
 	if m.Count() != 2 {
 		t.Fatalf("Count = %d, want 2", m.Count())
 	}
-	if m.CountInState(sdk.StatePlay) != 1 {
+	if m.CountInState(protocol.StatePlay) != 1 {
 		t.Fatal("CountInState(play) != 1")
 	}
 
@@ -102,7 +103,7 @@ func TestManagerRejectsBadUpdates(t *testing.T) {
 	}
 
 	const ghost = 9999
-	if m.SetProtocol(ghost, 47) || m.SetState(ghost, sdk.StatePlay) ||
+	if m.SetProtocol(ghost, 47) || m.SetState(ghost, protocol.StatePlay) ||
 		m.SetPlayer(ghost, testConnPlayer()) || m.SetBackend(ghost, "x") || m.Remove(ghost) {
 		t.Fatal("update on unknown ID reported success")
 	}
@@ -120,11 +121,11 @@ func TestManagerListSnapshot(t *testing.T) {
 	if len(list) != 1 {
 		t.Fatalf("len(List) = %d, want 1", len(list))
 	}
-	list[0].State = sdk.StateClosed
+	list[0].State = protocol.StateClosed
 	list[0].Player.Username = "HACKED"
 
 	got, _ := m.Get(a.ID)
-	if got.State == sdk.StateClosed || got.Player.Username == "HACKED" {
+	if got.State == protocol.StateClosed || got.Player.Username == "HACKED" {
 		t.Fatal("List: mutation of snapshot leaked into manager")
 	}
 }
@@ -138,13 +139,13 @@ func TestManagerConcurrent(t *testing.T) {
 			defer wg.Done()
 			c := m.Add(fmt.Sprintf("192.0.2.%d:1234", i))
 			m.SetProtocol(c.ID, 767)
-			m.SetState(c.ID, sdk.StateLogin)
+			m.SetState(c.ID, protocol.StateLogin)
 			p := testConnPlayer()
 			p.UUID = fmt.Sprintf("uuid-%d", i)
 			p.Username = fmt.Sprintf("P%d", i)
 			m.SetPlayer(c.ID, p)
 			m.SetBackend(c.ID, "127.0.0.1:25566")
-			m.SetState(c.ID, sdk.StatePlay)
+			m.SetState(c.ID, protocol.StatePlay)
 			_, _ = m.Get(c.ID)
 			_ = m.List()
 			_ = m.Count()
