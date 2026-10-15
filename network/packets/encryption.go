@@ -8,23 +8,12 @@ import (
 	"relay/network"
 )
 
-// EncryptionRequest Login clientbound 0x01: server -> client.
 type EncryptionRequest struct {
 	ServerID    string
 	PublicKey   []byte
 	VerifyToken []byte
 }
 
-func WriteEncryptionRequest(w io.Writer, req *EncryptionRequest) error {
-	var payload bytes.Buffer
-	network.WriteVarInt(&payload, 0x01)
-	network.WriteString(&payload, req.ServerID)
-	network.WriteByteArray(&payload, req.PublicKey)
-	network.WriteByteArray(&payload, req.VerifyToken)
-	return network.WriteFrame(w, payload.Bytes())
-}
-
-// EncryptionResponse Login serverbound 0x01: client -> server.
 type EncryptionResponse struct {
 	SharedSecretEncrypted []byte
 	VerifyTokenEncrypted  []byte
@@ -41,6 +30,7 @@ func ReadEncryptionResponse(r io.Reader) (*EncryptionResponse, error) {
 	if err != nil {
 		return nil, fmt.Errorf("packet id: %w", err)
 	}
+
 	if id != 0x01 {
 		return nil, fmt.Errorf("expected encryption response (id=1), got id=%d", id)
 	}
@@ -49,6 +39,7 @@ func ReadEncryptionResponse(r io.Reader) (*EncryptionResponse, error) {
 	if err != nil {
 		return nil, fmt.Errorf("shared secret: %w", err)
 	}
+
 	token, err := b.ReadByteArray(256)
 	if err != nil {
 		return nil, fmt.Errorf("verify token: %w", err)
@@ -59,4 +50,18 @@ func ReadEncryptionResponse(r io.Reader) (*EncryptionResponse, error) {
 		VerifyTokenEncrypted:  token,
 		Raw:                   raw,
 	}, nil
+}
+
+const minAuthenticateFlagProtocol = 766
+
+func WriteEncryptionRequest(w io.Writer, req *EncryptionRequest, protocol int) error {
+	var payload bytes.Buffer
+	network.WriteVarInt(&payload, 0x01)
+	network.WriteString(&payload, req.ServerID)
+	network.WriteByteArray(&payload, req.PublicKey)
+	network.WriteByteArray(&payload, req.VerifyToken)
+	if protocol >= minAuthenticateFlagProtocol {
+		payload.WriteByte(1)
+	}
+	return network.WriteFrame(w, payload.Bytes())
 }

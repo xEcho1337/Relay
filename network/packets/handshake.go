@@ -36,8 +36,8 @@ func ReadHandshake(r io.Reader) (*Handshake, error) {
 
 	if hs.Protocol, err = b.ReadVarInt(); err != nil {
 		return nil, fmt.Errorf("protocol version: %w", err)
-
 	}
+
 	if hs.Address, err = b.ReadString(); err != nil {
 		return nil, fmt.Errorf("server address: %w", err)
 	}

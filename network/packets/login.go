@@ -22,6 +22,7 @@ func ReadLoginStart(r io.Reader) (*LoginStart, error) {
 	if err != nil {
 		return nil, fmt.Errorf("packet id: %w", err)
 	}
+
 	if id != 0x00 {
 		return nil, fmt.Errorf("first login packet is not login start (id=%d)", id)
 	}
@@ -30,6 +31,7 @@ func ReadLoginStart(r io.Reader) (*LoginStart, error) {
 	if err != nil {
 		return nil, fmt.Errorf("username: %w", err)
 	}
+
 	if name == "" || len(name) > 16 {
 		return nil, fmt.Errorf("invalid username %q", name)
 	}
