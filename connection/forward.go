@@ -7,20 +7,33 @@ import (
 
 	"relay/config"
 	"relay/network/packets"
+	"relay/sdk"
+
+	"github.com/xEcho1337/fable/component"
 )
 
-func forwardAndRelay(client net.Conn, cfg *config.Config, hs *packets.Handshake, login *packets.LoginStart, playerUUID string) {
+func forwardAndRelay(client net.Conn, cfg *config.Config, hs *packets.Handshake, login *packets.LoginStart, playerUUID string, connID uint64) {
+	if len(cfg.Servers) == 0 {
+		slog.Error("no server configured")
+		_ = writeMiniDisconnect(client, cfg.Messages.NoServersConfigured)
+		return
+	}
+
 	backendAddr, err := resolveBackend(cfg, hs.Address)
 	if err != nil {
 		slog.Error("no backend for host", "host", hs.Address, "err", err)
+		_ = writeMiniDisconnect(client, cfg.Messages.NoServersConfigured)
 		return
 	}
+	DefaultManager.SetBackend(connID, backendAddr)
 
 	backend, err := net.DialTimeout("tcp", backendAddr, backendTimeout)
 	if err != nil {
 		slog.Error("dial backend", "backend", backendAddr, "err", err)
+		_ = writeMiniDisconnect(client, cfg.Messages.ServerOffline)
 		return
 	}
+
 	defer backend.Close()
 
 	if cfg.Network.IPForwarding && login != nil {
@@ -54,6 +67,10 @@ func forwardAndRelay(client net.Conn, cfg *config.Config, hs *packets.Handshake,
 		}
 	}
 
+	if login != nil {
+		DefaultManager.SetState(connID, sdk.StatePlay)
+	}
+
 	relay(client, backend)
 }
 
@@ -62,4 +79,12 @@ func forwardedAddress(address, ip, playerUUID string) string {
 		address = address[:i]
 	}
 	return address + "\x00" + ip + "\x00" + playerUUID
+}
+
+func writeMiniDisconnect(client net.Conn, mini string) error {
+	raw, err := component.Marshal(component.ParseMiniMessage(mini))
+	if err != nil {
+		return packets.WriteLoginDisconnect(client, mini)
+	}
+	return packets.WriteLoginDisconnectJSON(client, string(raw))
 }

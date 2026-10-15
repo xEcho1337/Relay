@@ -7,6 +7,7 @@ import (
 
 	"relay/config"
 	"relay/network/packets"
+	"relay/sdk"
 )
 
 const (
@@ -18,6 +19,13 @@ const (
 
 func HandleConnection(client net.Conn, cfg *config.Config) {
 	defer client.Close()
+
+	remoteAddr := ""
+	if client.RemoteAddr() != nil {
+		remoteAddr = client.RemoteAddr().String()
+	}
+	entry := DefaultManager.Add(remoteAddr)
+	defer DefaultManager.Remove(entry.ID)
 
 	if err := client.SetReadDeadline(time.Now().Add(handshakeTimeout)); err != nil {
 		slog.Error("set deadline", "addr", client.RemoteAddr(), "err", err)
@@ -31,6 +39,16 @@ func HandleConnection(client net.Conn, cfg *config.Config) {
 		return
 	}
 
+	DefaultManager.SetProtocol(entry.ID, hs.Protocol)
+	switch hs.NextState {
+	case 1:
+		DefaultManager.SetState(entry.ID, sdk.StateStatus)
+	case 2:
+		DefaultManager.SetState(entry.ID, sdk.StateLogin)
+	case 3:
+		DefaultManager.SetState(entry.ID, sdk.StateTransfer)
+	}
+
 	slog.Info("handshake",
 		"addr", client.RemoteAddr(), "host", hs.Address, "port", hs.Port,
 		"protocol", hs.Protocol, "next", hs.NextState)
@@ -38,7 +56,7 @@ func HandleConnection(client net.Conn, cfg *config.Config) {
 	// Status has no LoginStart packet; forward the handshake and relay.
 	if hs.NextState == 1 {
 		_ = client.SetReadDeadline(time.Time{})
-		forwardAndRelay(client, cfg, hs, nil, "")
+		forwardAndRelay(client, cfg, hs, nil, "", entry.ID)
 		return
 	}
 
@@ -62,7 +80,7 @@ func HandleConnection(client net.Conn, cfg *config.Config) {
 
 	playerUUID := offlineUUID(login.Username)
 	if cfg.Network.OnlineMode {
-		enc, uuid, ok := authenticate(client, login.Username)
+		enc, uuid, ok := authenticate(client, login.Username, cfg, hs.Protocol)
 		if !ok {
 			return
 		}
@@ -70,6 +88,13 @@ func HandleConnection(client net.Conn, cfg *config.Config) {
 		playerUUID = uuid
 	}
 
+	DefaultManager.SetPlayer(entry.ID, sdk.Player{
+		Username:    login.Username,
+		UUID:        playerUUID,
+		ClientIP:    clientIP(client),
+		ConnectedAt: uint64(time.Now().UnixMilli()),
+	})
+
 	_ = client.SetReadDeadline(time.Time{})
-	forwardAndRelay(client, cfg, hs, login, playerUUID)
+	forwardAndRelay(client, cfg, hs, login, playerUUID, entry.ID)
 }

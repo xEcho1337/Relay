@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"log/slog"
 	"net"
+	"relay/config"
 	"time"
 
 	"relay/auth"
@@ -16,7 +17,7 @@ import (
 // authenticate performs the premium login flow:
 // EncryptionRequest, EncryptionResponse, token verification, AES-CFB8,
 // and Mojang hasJoined verification.
-func authenticate(client net.Conn, username string) (net.Conn, string, bool) {
+func authenticate(client net.Conn, username string, cfg *config.Config, protocol int) (net.Conn, string, bool) {
 	key, err := auth.Key()
 	if err != nil {
 		slog.Error("rsa key", "err", err)
@@ -39,7 +40,7 @@ func authenticate(client net.Conn, username string) (net.Conn, string, bool) {
 		ServerID:    "",
 		PublicKey:   pubDER,
 		VerifyToken: token,
-	}); err != nil {
+	}, protocol); err != nil {
 		slog.Error("encryption request", "addr", client.RemoteAddr(), "err", err)
 		return nil, "", false
 	}
@@ -58,21 +59,21 @@ func authenticate(client net.Conn, username string) (net.Conn, string, bool) {
 	secret, err := rsa.DecryptPKCS1v15(rand.Reader, key, resp.SharedSecretEncrypted)
 	if err != nil || len(secret) != 16 {
 		slog.Warn("bad shared secret", "addr", client.RemoteAddr(), "err", err)
-		_ = packets.WriteLoginDisconnect(client, "Failed to verify username!")
+		_ = writeMiniDisconnect(client, cfg.Messages.UsernameVerificationFailed)
 		return nil, "", false
 	}
 
 	decryptedToken, err := rsa.DecryptPKCS1v15(rand.Reader, key, resp.VerifyTokenEncrypted)
 	if err != nil || subtle.ConstantTimeCompare(decryptedToken, token) != 1 {
 		slog.Warn("bad verify token", "addr", client.RemoteAddr())
-		_ = packets.WriteLoginDisconnect(client, "Failed to verify username!")
+		_ = writeMiniDisconnect(client, cfg.Messages.UsernameVerificationFailed)
 		return nil, "", false
 	}
 
 	undashed, err := auth.HasJoined(username, auth.ServerHash("", secret, pubDER))
 	if err != nil {
 		slog.Info("hasJoined failed", "username", username, "err", err)
-		_ = packets.WriteLoginDisconnect(client, "Failed to verify username!")
+		_ = writeMiniDisconnect(client, cfg.Messages.UsernameVerificationFailed)
 		return nil, "", false
 	}
 
