@@ -12,6 +12,9 @@ relay.exe
 *.prof
 *.out
 
+# Local proxy runtime config (default.yml is the tracked template)
+config.yml
+
 # Logs and temporary files
 *.log
 *.log.*
