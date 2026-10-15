@@ -28,13 +28,18 @@ func (h *Handler) Enabled(context.Context, slog.Level) bool {
 	return true
 }
 
-// [15:04:05] [relay/INFO]: message key=value
+// Handle logging style: [15:04:05] [relay/INFO]: message key=value
 func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "[%s] [relay/%s]: %s", r.Time.Format("15:04:05"), r.Level, r.Message)
+	_, err := fmt.Fprintf(&sb, "[%s] [relay/%s]: %s", r.Time.Format("15:04:05"), r.Level, r.Message)
+	if err != nil {
+		return err
+	}
+
 	for _, a := range h.attrs {
 		writeAttr(&sb, a)
 	}
+
 	r.Attrs(func(a slog.Attr) bool {
 		writeAttr(&sb, a)
 		return true
@@ -43,7 +48,8 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	_, err := io.WriteString(h.out, sb.String())
+
+	_, err = io.WriteString(h.out, sb.String())
 	return err
 }
 
