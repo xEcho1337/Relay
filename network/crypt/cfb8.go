@@ -65,8 +65,13 @@ func (c *Conn) Read(b []byte) (int, error) {
 	defer c.rmu.Unlock()
 
 	n, err := c.Conn.Read(b)
+	var stream [aes.BlockSize]byte
 	for i := 0; i < n; i++ {
-		b[i] = c.dec.cryptByte(b[i], false)
+		c.dec.block.Encrypt(stream[:], c.dec.fb[:])
+		plain := b[i] ^ stream[0]
+		copy(c.dec.fb[:], c.dec.fb[1:])
+		c.dec.fb[aes.BlockSize-1] = b[i]
+		b[i] = plain
 	}
 	return n, err
 }
@@ -76,8 +81,13 @@ func (c *Conn) Write(b []byte) (int, error) {
 	defer c.wmu.Unlock()
 
 	tmp := make([]byte, len(b))
+	var stream [aes.BlockSize]byte
 	for i, v := range b {
-		tmp[i] = c.enc.cryptByte(v, true)
+		c.enc.block.Encrypt(stream[:], c.enc.fb[:])
+		ciphertext := v ^ stream[0]
+		copy(c.enc.fb[:], c.enc.fb[1:])
+		c.enc.fb[aes.BlockSize-1] = ciphertext
+		tmp[i] = ciphertext
 	}
 
 	written := 0
