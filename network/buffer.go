@@ -151,7 +151,8 @@ func WriteByteArray(buf *bytes.Buffer, b []byte) {
 	buf.Write(b)
 }
 
-// WriteFrame writes one length-prefixed frame: VarInt(len(payload)) + payload.
+// WriteFrame writes one length-prefixed frame.
+// Format: VarInt(len(payload)) + payload.
 func WriteFrame(w io.Writer, payload []byte) error {
 	var prefix bytes.Buffer
 	WriteVarInt(&prefix, len(payload))

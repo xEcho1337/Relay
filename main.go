@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
-	config "relay/config"
+	"relay/config"
 	"relay/connection"
 	"relay/logging"
 	"time"
