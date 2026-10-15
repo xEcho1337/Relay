@@ -7,23 +7,27 @@ import (
 
 	"relay/config"
 	"relay/network/packets"
-	"relay/sdk"
+	"relay/protocol"
 
 	"github.com/xEcho1337/fable/component"
 )
 
-func forwardAndRelay(client net.Conn, cfg *config.Config, hs *packets.Handshake, login *packets.LoginStart, playerUUID string, connID uint64) {
+func forwardAndRelay(client net.Conn, cfg *config.Config, hs *packets.Handshake, login *packets.LoginStart, playerUUID string, connID uint64, backendOverride string) {
 	if len(cfg.Servers) == 0 {
 		slog.Error("no server configured")
 		_ = writeMiniDisconnect(client, cfg.Messages.NoServersConfigured)
 		return
 	}
 
-	backendAddr, err := resolveBackend(cfg, hs.Address)
-	if err != nil {
-		slog.Error("no backend for host", "host", hs.Address, "err", err)
-		_ = writeMiniDisconnect(client, cfg.Messages.NoServersConfigured)
-		return
+	backendAddr := backendOverride
+	if backendAddr == "" {
+		resolved, err := resolveBackend(cfg, hs.Address)
+		if err != nil {
+			slog.Error("no backend for host", "host", hs.Address, "err", err)
+			_ = writeMiniDisconnect(client, cfg.Messages.NoServersConfigured)
+			return
+		}
+		backendAddr = resolved
 	}
 	DefaultManager.SetBackend(connID, backendAddr)
 
@@ -68,7 +72,7 @@ func forwardAndRelay(client net.Conn, cfg *config.Config, hs *packets.Handshake,
 	}
 
 	if login != nil {
-		DefaultManager.SetState(connID, sdk.StatePlay)
+		DefaultManager.SetState(connID, protocol.StatePlay)
 	}
 
 	relay(client, backend)

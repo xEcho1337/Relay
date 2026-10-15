@@ -8,6 +8,7 @@ import (
 	"relay/config"
 	"relay/connection"
 	"relay/logging"
+	"relay/plugin"
 	"time"
 )
 
@@ -41,7 +42,7 @@ func main() {
 			continue
 		}
 
-		go connection.HandleConnection(conn, cfg)
+		go connection.HandleConnection(conn, cfg, plugin.DefaultBus)
 	}
 }
 
