@@ -3,28 +3,32 @@ package sdk
 type HandshakeNextState int
 
 const (
-	Status HandshakeNextState = 1
-	Login  HandshakeNextState = 2
+	Status   HandshakeNextState = 1
+	Login    HandshakeNextState = 2
+	Transfer HandshakeNextState = 3
 )
 
 type HandshakeEvent struct {
-	Protocol  uint32
-	Host      string
-	Port      uint16
-	NextState HandshakeNextState // 1=status, 2=login
-	ClientIP  string
+	ConnectionID uint64
+	Protocol     uint32
+	Host         string
+	Port         uint16
+	NextState    HandshakeNextState
+	ClientIP     string
 }
 
 type LoginEvent struct {
-	Username string
-	UUID     string
-	Backend  string
+	ConnectionID uint64
+	Username     string
+	UUID         string
+	Backend      string
 }
 
 type DisconnectEvent struct {
-	Username string
-	UUID     string
-	Reason   string
+	ConnectionID uint64
+	Username     string
+	UUID         string
+	Reason       string
 }
 type Decision int
 
@@ -33,9 +37,3 @@ const (
 	OverrideBackend
 	Deny
 )
-
-/*
-func OnHandshake(func(e HandshakeEvent) Decision)
-func OnLogin(func(e LoginEvent) (Decision, string)) // string = backend override o kick reason
-func OnDisconnect(func(e DisconnectEvent))
-*/
