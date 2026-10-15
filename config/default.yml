@@ -13,3 +13,13 @@ servers:
     # Public host name used to select this backend.
     id: "lobby.testing.it"
     address: "127.0.0.1:25566"
+
+messages:
+  # Message sent if a player tries to join and no servers have been configured.
+  no-servers-configured: "<red>No backend servers have been configured.</red>"
+
+  # Message sent if a player tries to join and the backend server is offline.
+  server-offline: "<red>The backend server is offline.</red>"
+
+  # Message sent if there is a failure during Mojang authentication.
+  username-verification-failed: "<red>Failed to verify the username.</red>"

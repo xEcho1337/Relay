@@ -21,9 +21,16 @@ type ServerConfig struct {
 	Address string `yaml:"address"`
 }
 
+type MessagesConfig struct {
+	NoServersConfigured        string `yaml:"no-servers-configured"`
+	ServerOffline              string `yaml:"server-offline"`
+	UsernameVerificationFailed string `yaml:"username-verification-failed"`
+}
+
 type Config struct {
-	Network NetworkConfig           `yaml:"network"`
-	Servers map[string]ServerConfig `yaml:"servers"`
+	Network  NetworkConfig           `yaml:"network"`
+	Servers  map[string]ServerConfig `yaml:"servers"`
+	Messages MessagesConfig          `yaml:"messages"`
 }
 
 func LoadConfig(path string) (*Config, error) {
