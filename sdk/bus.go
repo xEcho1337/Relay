@@ -9,6 +9,46 @@ type EventHandler[T any] func(T) (Decision, string)
 type Topic[T any] struct {
 	mu       sync.RWMutex
 	handlers []EventHandler[T]
+	mutating []func(*T) (Decision, string)
+}
+
+func (t *Topic[T]) SubscribeMutating(handler func(*T) (Decision, string)) {
+	if handler == nil {
+		return
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.mutating = append(t.mutating, handler)
+}
+
+func (t *Topic[T]) EmitMutating(event *T) (Decision, string) {
+	t.mu.RLock()
+	handlers := append([]EventHandler[T](nil), t.handlers...)
+	mutating := append([]func(*T) (Decision, string)(nil), t.mutating...)
+	t.mu.RUnlock()
+
+	decision, reason := Allow, ""
+	apply := func(current Decision, currentReason string) bool {
+		switch current {
+		case Deny:
+			decision, reason = current, currentReason
+			return false
+		case OverrideBackend:
+			decision, reason = current, currentReason
+		}
+		return true
+	}
+	for _, handler := range handlers {
+		if !apply(handler(*event)) {
+			return decision, reason
+		}
+	}
+	for _, handler := range mutating {
+		if !apply(handler(event)) {
+			return decision, reason
+		}
+	}
+	return decision, reason
 }
 
 // Subscribe adds a handler to the topic. Handlers may return a decision and
@@ -50,12 +90,17 @@ func (t *Topic[T]) Emit(event T) (Decision, string) {
 	decision := Allow
 	payload := ""
 	for _, handler := range handlers {
-		switch currentDecision, currentPayload := handler(event); currentDecision {
+		currentDecision, currentReason := handler(event)
+		switch currentDecision {
 		case Deny:
-			return Deny, currentPayload
+			return Deny, currentReason
 		case OverrideBackend:
 			decision = OverrideBackend
-			payload = currentPayload
+			payload = currentReason
+		case Allow:
+			// An allow result leaves the accumulated decision unchanged.
+		default:
+			return Allow, ""
 		}
 	}
 

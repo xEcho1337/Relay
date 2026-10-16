@@ -137,12 +137,13 @@ func HandleConnection(client net.Conn, cfg *config.Config, bus *plugin.Bus) {
 		return
 	}
 
-	if decision, payload := bus.Login.Emit(sdk.LoginEvent{
+	loginEvent := sdk.LoginEvent{
 		ConnectionID: entry.ID,
 		Username:     login.Username,
 		UUID:         playerUUID,
 		Backend:      defaultBackend,
-	}); decision == sdk.Deny {
+	}
+	if decision, payload := bus.Login.EmitMutating(&loginEvent); decision == sdk.Deny {
 		discReason = payload
 		loginState := protocol.StateLogin
 		if hs.NextState == 3 {
@@ -153,9 +154,14 @@ func HandleConnection(client net.Conn, cfg *config.Config, bus *plugin.Bus) {
 	} else if decision == sdk.OverrideBackend {
 		backendOverride = payload
 	}
+	login.Username = loginEvent.Username
+	login.Raw = packets.EncodeLoginStart(login.Username)
+	discUsername = loginEvent.Username
+	discUUID = loginEvent.UUID
+	DefaultManager.SetPlayer(entry.ID, sdk.Player{Username: loginEvent.Username, UUID: loginEvent.UUID, ClientIP: clientIP(client), ConnectedAt: uint64(time.Now().UnixMilli())})
 
 	_ = client.SetReadDeadline(time.Time{})
-	forwardAndRelay(client, cfg, hs, login, playerUUID, entry.ID, backendOverride)
+	forwardAndRelay(client, cfg, hs, login, loginEvent.UUID, entry.ID, backendOverride)
 }
 
 func denyConnection(client net.Conn, state protocol.State, proto int, reason string) {

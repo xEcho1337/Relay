@@ -88,7 +88,7 @@ func forwardedAddress(address, ip, playerUUID string) string {
 func writeMiniDisconnect(client net.Conn, mini string) error {
 	raw, err := component.Marshal(component.ParseMiniMessage(mini))
 	if err != nil {
-		return packets.WriteLoginDisconnect(client, mini)
+		return err
 	}
-	return packets.WriteLoginDisconnectJSON(client, string(raw))
+	return packets.WriteLoginDisconnect(client, string(raw))
 }

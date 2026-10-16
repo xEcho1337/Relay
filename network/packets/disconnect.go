@@ -2,11 +2,9 @@ package packets
 
 import (
 	"bytes"
-	"encoding/json"
 	"io"
-	"relay/protocol"
-
 	"relay/network"
+	"relay/protocol"
 )
 
 func configDisconnectID(proto int) (int, bool) {
@@ -20,11 +18,9 @@ func configDisconnectID(proto int) (int, bool) {
 }
 
 func writeChatDisconnect(w io.Writer, id int, reason string) error {
-	raw, _ := json.Marshal(map[string]string{"text": reason})
-
 	var payload bytes.Buffer
 	network.WriteVarInt(&payload, id)
-	network.WriteString(&payload, string(raw))
+	network.WriteString(&payload, reason)
 	return network.WriteFrame(w, payload.Bytes())
 }
 
@@ -46,13 +42,6 @@ func PlayDisconnectID(proto int) (id int, ok bool) {
 
 func WriteLoginDisconnect(w io.Writer, reason string) error {
 	return writeChatDisconnect(w, protocol.LoginDisconnectId, reason)
-}
-
-func WriteLoginDisconnectJSON(w io.Writer, raw string) error {
-	var payload bytes.Buffer
-	network.WriteVarInt(&payload, protocol.LoginDisconnectId)
-	network.WriteString(&payload, raw)
-	return network.WriteFrame(w, payload.Bytes())
 }
 
 func WriteConfigDisconnect(w io.Writer, proto int, reason string) error {

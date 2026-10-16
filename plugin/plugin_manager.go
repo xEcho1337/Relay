@@ -77,17 +77,28 @@ func LoadWASM(ctx context.Context, path string, bus *sdk.Bus) (*WASMPlugin, erro
 		return nil, fmt.Errorf("plugin %q does not implement Relay ABI v%d", path, sdk.ABIVersion)
 	}
 
-	bus.Login.Subscribe(func(event sdk.LoginEvent) (sdk.Decision, string) {
+	bus.Login.SubscribeMutating(func(event *sdk.LoginEvent) (sdk.Decision, string) {
 		request, encodeErr := abi.EncodeLogin(event.ConnectionID, event.Username, event.UUID, event.Backend)
-		decision, payload, err := plugin.handle(ctx, request, encodeErr)
+		decision, payload, username, uuid, backend, changed, err := plugin.handle(ctx, request, encodeErr)
 		if err != nil {
 			return sdk.Allow, ""
+		}
+		if event != nil && changed != 0 {
+			if changed&uint8(sdk.LoginUsername) != 0 {
+				event.Username = username
+			}
+			if changed&uint8(sdk.LoginUUID) != 0 {
+				event.UUID = uuid
+			}
+			if changed&uint8(sdk.LoginBackend) != 0 {
+				event.Backend = backend
+			}
 		}
 		return decision, payload
 	})
 	bus.Handshake.Subscribe(func(event sdk.HandshakeEvent) (sdk.Decision, string) {
 		request, encodeErr := abi.EncodeHandshake(event.ConnectionID, event.Host, event.ClientIP, event.Protocol, event.Port, uint16(event.NextState))
-		decision, payload, err := plugin.handle(ctx, request, encodeErr)
+		decision, payload, _, _, _, _, err := plugin.handle(ctx, request, encodeErr)
 		if err != nil {
 			return sdk.Allow, ""
 		}
@@ -95,7 +106,7 @@ func LoadWASM(ctx context.Context, path string, bus *sdk.Bus) (*WASMPlugin, erro
 	})
 	bus.Disconnect.Subscribe(func(event sdk.DisconnectEvent) (sdk.Decision, string) {
 		request, encodeErr := abi.EncodeDisconnect(event.ConnectionID, event.Username, event.UUID, event.Reason)
-		decision, payload, err := plugin.handle(ctx, request, encodeErr)
+		decision, payload, _, _, _, _, err := plugin.handle(ctx, request, encodeErr)
 		if err != nil {
 			return sdk.Allow, ""
 		}
@@ -135,42 +146,49 @@ func LoadDirectory(ctx context.Context, directory string, bus *sdk.Bus) ([]*WASM
 	return plugins, nil
 }
 
-func (p *WASMPlugin) handle(ctx context.Context, request []byte, err error) (sdk.Decision, string, error) {
+func (p *WASMPlugin) handle(ctx context.Context, request []byte, err error) (sdk.Decision, string, string, string, string, uint8, error) {
 	if err != nil {
-		return sdk.Allow, "", err
+		return sdk.Allow, "", "", "", "", 0, err
 	}
 
 	results, err := p.alloc.Call(ctx, uint64(len(request)))
 	if err != nil {
-		return sdk.Allow, "", fmt.Errorf("allocate plugin request: %w", err)
+		return sdk.Allow, "", "", "", "", 0, fmt.Errorf("allocate plugin request: %w", err)
 	}
 	if len(results) != 1 {
-		return sdk.Allow, "", fmt.Errorf("allocate plugin request: expected one result")
+		return sdk.Allow, "", "", "", "", 0, fmt.Errorf("allocate plugin request: expected one result")
 	}
 	requestPtr := uint32(results[0])
 	if ok := p.memory.Write(requestPtr, request); !ok {
-		return sdk.Allow, "", fmt.Errorf("write plugin request")
+		return sdk.Allow, "", "", "", "", 0, fmt.Errorf("write plugin request")
 	}
 
 	responseResults, err := p.handleMessage.Call(ctx, uint64(requestPtr), uint64(len(request)))
 	if err != nil {
-		return sdk.Allow, "", fmt.Errorf("handle plugin login: %w", err)
+		return sdk.Allow, "", "", "", "", 0, fmt.Errorf("handle plugin login: %w", err)
 	}
 	if len(responseResults) != 1 {
-		return sdk.Allow, "", fmt.Errorf("handle plugin login: expected one result")
+		return sdk.Allow, "", "", "", "", 0, fmt.Errorf("handle plugin login: expected one result")
 	}
 	packed := responseResults[0]
 	responsePtr := uint32(packed >> 32)
 	responseLen := uint32(packed)
 	response, ok := p.memory.Read(responsePtr, responseLen)
 	if !ok {
-		return sdk.Allow, "", fmt.Errorf("read plugin response")
+		return sdk.Allow, "", "", "", "", 0, fmt.Errorf("read plugin response")
 	}
 	copyResponse := append([]byte(nil), response...)
 	_, _ = p.free.Call(ctx, uint64(requestPtr), uint64(len(request)))
 	_, _ = p.free.Call(ctx, uint64(responsePtr), uint64(responseLen))
-	decision, payload, err := abi.DecodeResponse(copyResponse)
-	return sdk.Decision(decision), payload, err
+	decision, payload, username, uuid, backend, changed, err := abi.DecodeLoginResponse(copyResponse)
+	if err == nil && len(request) >= 4 && request[2] == byte(abi.Login) {
+		// Login mutations are applied by the caller through the event pointer.
+		_ = username
+		_ = uuid
+		_ = backend
+		_ = changed
+	}
+	return sdk.Decision(decision), payload, username, uuid, backend, changed, err
 }
 
 // Close releases the plugin module.

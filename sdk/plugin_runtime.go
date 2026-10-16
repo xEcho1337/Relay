@@ -18,15 +18,15 @@ func NewPlugin() *Plugin {
 	return plugin
 }
 
-func (p *Plugin) OnLogin(handler func(LoginEvent) Result) {
+func (p *Plugin) OnLogin(handler func(*LoginEvent)) {
 	p.registry.OnLogin(handler)
 }
 
-func (p *Plugin) OnHandshake(handler func(HandshakeEvent) Result) {
+func (p *Plugin) OnHandshake(handler func(*HandshakeEvent)) {
 	p.registry.OnHandshake(handler)
 }
 
-func (p *Plugin) OnDisconnect(handler func(DisconnectEvent) Result) {
+func (p *Plugin) OnDisconnect(handler func(*DisconnectEvent)) {
 	p.registry.OnDisconnect(handler)
 }
 
@@ -53,7 +53,8 @@ func (p *Plugin) handleLogin(data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return p.dispatchLogin(LoginEvent{id, username, uuid, backend})
+	event := LoginEvent{ConnectionID: id, Username: username, UUID: uuid, Backend: backend}
+	return p.dispatchLogin(&event)
 }
 
 func (p *Plugin) handleHandshake(data []byte) ([]byte, error) {
@@ -61,8 +62,8 @@ func (p *Plugin) handleHandshake(data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	event := HandshakeEvent{id, protocol, host, port, HandshakeNextState(state), clientIP}
-	return p.dispatchHandshake(event)
+	event := HandshakeEvent{ConnectionID: id, Protocol: protocol, Host: host, Port: port, NextState: HandshakeNextState(state), ClientIP: clientIP}
+	return p.dispatchHandshake(&event)
 }
 
 func (p *Plugin) handleDisconnect(data []byte) ([]byte, error) {
@@ -70,32 +71,36 @@ func (p *Plugin) handleDisconnect(data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return p.dispatchDisconnect(DisconnectEvent{id, username, uuid, reason})
+	event := DisconnectEvent{ConnectionID: id, Username: username, UUID: uuid, Reason: reason}
+	return p.dispatchDisconnect(&event)
 }
 
-func (p *Plugin) dispatchLogin(event LoginEvent) ([]byte, error) {
-	result := dispatch(p.registry.login, event)
-	return abi.EncodeResponse(uint8(result.Decision), result.Payload)
-}
-
-func (p *Plugin) dispatchHandshake(event HandshakeEvent) ([]byte, error) {
-	result := dispatch(p.registry.handshake, event)
-	return abi.EncodeResponse(uint8(result.Decision), result.Payload)
-}
-
-func (p *Plugin) dispatchDisconnect(event DisconnectEvent) ([]byte, error) {
-	result := dispatch(p.registry.disconnect, event)
-	return abi.EncodeResponse(uint8(result.Decision), result.Payload)
-}
-
-func dispatch[T any](handlers []func(T) Result, event T) Result {
-	result := Result{Decision: Allow}
-	for _, handler := range handlers {
-		result = handler(event)
-		if result.Decision == Deny {
+func (p *Plugin) dispatchLogin(event *LoginEvent) ([]byte, error) {
+	for _, handler := range p.registry.login {
+		handler(event)
+		if event.decision == Deny {
 			break
 		}
 	}
+	return abi.EncodeLoginResponse(uint8(event.decision), reasonString(event.reason), event.Username, event.UUID, event.Backend, uint8(event.changed))
+}
 
-	return result
+func (p *Plugin) dispatchHandshake(event *HandshakeEvent) ([]byte, error) {
+	for _, handler := range p.registry.handshake {
+		handler(event)
+		if event.decision == Deny {
+			break
+		}
+	}
+	return abi.EncodeResponse(uint8(event.decision), reasonString(event.reason))
+}
+
+func (p *Plugin) dispatchDisconnect(event *DisconnectEvent) ([]byte, error) {
+	for _, handler := range p.registry.disconnect {
+		handler(event)
+		if event.decision == Deny {
+			break
+		}
+	}
+	return abi.EncodeResponse(uint8(event.decision), reasonString(event.component))
 }

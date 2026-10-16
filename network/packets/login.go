@@ -1,6 +1,7 @@
 package packets
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 
@@ -37,4 +38,14 @@ func ReadLoginStart(r io.Reader) (*LoginStart, error) {
 	}
 
 	return &LoginStart{Username: name, Raw: raw}, nil
+}
+
+// EncodeLoginStart builds a login start packet for the supplied username.
+func EncodeLoginStart(username string) []byte {
+	var payload bytes.Buffer
+	network.WriteVarInt(&payload, 0)
+	network.WriteString(&payload, username)
+	var packet bytes.Buffer
+	network.WriteFrame(&packet, payload.Bytes())
+	return packet.Bytes()
 }
