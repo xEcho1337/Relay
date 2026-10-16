@@ -26,6 +26,11 @@ func main() {
 		pluginDirectory = defaultPluginDirectory
 	}
 
+	if err := plugin.EnsureDirectory(pluginDirectory); err != nil {
+		slog.Error("ensure plugin directory", "err", err)
+		os.Exit(1)
+	}
+
 	if _, err := plugin.LoadDirectory(context.Background(), pluginDirectory, plugin.DefaultBus); err != nil {
 		slog.Error("load plugins", "err", err)
 		os.Exit(1)

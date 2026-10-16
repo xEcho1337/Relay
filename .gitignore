@@ -11,6 +11,7 @@ relay
 relay.exe
 *.prof
 *.out
+*.wasm
 
 # Local proxy runtime config (default.yml is the tracked template)
 config.yml

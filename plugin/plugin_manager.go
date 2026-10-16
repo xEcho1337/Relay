@@ -26,6 +26,7 @@ func Init() {
 
 // WASMPlugin is a loaded plugin module connected to the Relay event bus.
 type WASMPlugin struct {
+	path          string
 	module        api.Module
 	alloc         api.Function
 	handleMessage api.Function
@@ -66,6 +67,7 @@ func LoadWASM(ctx context.Context, path string, bus *sdk.Bus) (*WASMPlugin, erro
 	}
 
 	plugin := &WASMPlugin{
+		path:          path,
 		module:        module,
 		alloc:         module.ExportedFunction("plugin_alloc"),
 		handleMessage: module.ExportedFunction("plugin_handle_message"),
@@ -76,22 +78,32 @@ func LoadWASM(ctx context.Context, path string, bus *sdk.Bus) (*WASMPlugin, erro
 		_ = module.Close(ctx)
 		return nil, fmt.Errorf("plugin %q does not implement Relay ABI v%d", path, sdk.ABIVersion)
 	}
+	// Relay never invokes _start, so a plain command module would load but
+	// its init handlers would never run and every event would fail open to
+	// Allow. Reject that upfront instead of running unprotected.
+	if module.ExportedFunction("_initialize") == nil {
+		_ = module.Close(ctx)
+		return nil, fmt.Errorf("plugin %q does not export _initialize; build it as a WASI reactor with GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared", path)
+	}
 
 	bus.Login.SubscribeMutating(func(event *sdk.LoginEvent) (sdk.Decision, string) {
 		request, encodeErr := abi.EncodeLogin(event.ConnectionID, event.Username, event.UUID, event.Backend)
 		decision, payload, username, uuid, backend, changed, err := plugin.handle(ctx, request, encodeErr)
 		if err != nil {
+			slog.Warn("plugin login failed, allowing", "plugin", plugin.path, "err", err)
 			return sdk.Allow, ""
 		}
 		if event != nil && changed != 0 {
+			// Apply through the setters so change tracking propagates to
+			// proxy-side handlers inspecting ChangedFields.
 			if changed&uint8(sdk.LoginUsername) != 0 {
-				event.Username = username
+				event.SetUsername(username)
 			}
 			if changed&uint8(sdk.LoginUUID) != 0 {
-				event.UUID = uuid
+				event.SetUUID(uuid)
 			}
 			if changed&uint8(sdk.LoginBackend) != 0 {
-				event.Backend = backend
+				event.SetBackend(backend)
 			}
 		}
 		return decision, payload
@@ -100,6 +112,7 @@ func LoadWASM(ctx context.Context, path string, bus *sdk.Bus) (*WASMPlugin, erro
 		request, encodeErr := abi.EncodeHandshake(event.ConnectionID, event.Host, event.ClientIP, event.Protocol, event.Port, uint16(event.NextState))
 		decision, payload, _, _, _, _, err := plugin.handle(ctx, request, encodeErr)
 		if err != nil {
+			slog.Warn("plugin handshake failed, allowing", "plugin", plugin.path, "err", err)
 			return sdk.Allow, ""
 		}
 		return decision, payload
@@ -108,12 +121,22 @@ func LoadWASM(ctx context.Context, path string, bus *sdk.Bus) (*WASMPlugin, erro
 		request, encodeErr := abi.EncodeDisconnect(event.ConnectionID, event.Username, event.UUID, event.Reason)
 		decision, payload, _, _, _, _, err := plugin.handle(ctx, request, encodeErr)
 		if err != nil {
+			slog.Warn("plugin disconnect failed, allowing", "plugin", plugin.path, "err", err)
 			return sdk.Allow, ""
 		}
 		return decision, payload
 	})
 
 	return plugin, nil
+}
+
+// EnsureDirectory creates the plugin directory (including parents) when it
+// does not exist, so operators can drop .wasm files in right after startup.
+func EnsureDirectory(directory string) error {
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		return fmt.Errorf("create plugin directory %q: %w", directory, err)
+	}
+	return nil
 }
 
 // LoadDirectory loads every .wasm plugin in a directory in filename order.

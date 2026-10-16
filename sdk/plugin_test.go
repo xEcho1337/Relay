@@ -42,8 +42,17 @@ func TestPluginCanModifyLogin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	decision, _, err := abi.DecodeResponse(response)
-	if err != nil || Decision(decision) != Allow {
-		t.Fatalf("got decision %d, err %v", decision, err)
+	decision, _, username, _, _, changed, err := abi.DecodeLoginResponse(response)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if Decision(decision) != Allow {
+		t.Fatalf("decision = %d, want Allow", decision)
+	}
+	if username != "Steve" {
+		t.Fatalf("username = %q, want %q", username, "Steve")
+	}
+	if LoginField(changed)&LoginUsername == 0 {
+		t.Fatalf("changed = %d, want LoginUsername bit set", changed)
 	}
 }

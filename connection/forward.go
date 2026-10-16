@@ -29,6 +29,7 @@ func forwardAndRelay(client net.Conn, cfg *config.Config, hs *packets.Handshake,
 		}
 		backendAddr = resolved
 	}
+
 	DefaultManager.SetBackend(connID, backendAddr)
 
 	backend, err := net.DialTimeout("tcp", backendAddr, backendTimeout)

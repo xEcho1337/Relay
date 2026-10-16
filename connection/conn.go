@@ -154,11 +154,24 @@ func HandleConnection(client net.Conn, cfg *config.Config, bus *plugin.Bus) {
 	} else if decision == sdk.OverrideBackend {
 		backendOverride = payload
 	}
+	slog.Info("login accepted", "username", loginEvent.Username)
+
+	if loginEvent.ChangedFields()&sdk.LoginUsername != 0 &&
+		loginEvent.ChangedFields()&sdk.LoginUUID == 0 {
+		// The plugin renamed the player without providing a new UUID, recalculate it.
+		loginEvent.UUID = offlineUUID(loginEvent.Username)
+	}
+
 	login.Username = loginEvent.Username
 	login.Raw = packets.EncodeLoginStart(login.Username)
 	discUsername = loginEvent.Username
 	discUUID = loginEvent.UUID
-	DefaultManager.SetPlayer(entry.ID, sdk.Player{Username: loginEvent.Username, UUID: loginEvent.UUID, ClientIP: clientIP(client), ConnectedAt: uint64(time.Now().UnixMilli())})
+	DefaultManager.SetPlayer(entry.ID, sdk.Player{
+		Username:    loginEvent.Username,
+		UUID:        loginEvent.UUID,
+		ClientIP:    clientIP(client),
+		ConnectedAt: uint64(time.Now().UnixMilli()),
+	})
 
 	_ = client.SetReadDeadline(time.Time{})
 	forwardAndRelay(client, cfg, hs, login, loginEvent.UUID, entry.ID, backendOverride)

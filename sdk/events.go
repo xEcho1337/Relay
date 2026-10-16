@@ -90,7 +90,7 @@ func (e *HandshakeEvent) Deny(reason component.Component) {
 	e.reason = reason
 }
 
-func (e *HandshakeEvent) OverrideBackend(backend string) {
+func (e *HandshakeEvent) SetBackend(backend string) {
 	e.decision = OverrideBackend
 	e.reason = component.Text(backend)
 }
