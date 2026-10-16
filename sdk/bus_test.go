@@ -1,25 +1,23 @@
-package plugin
+package sdk
 
 import (
 	"sync"
 	"testing"
-
-	"relay/sdk"
 )
 
-func testHandshakeEvent() sdk.HandshakeEvent {
-	return sdk.HandshakeEvent{
+func testHandshakeEvent() HandshakeEvent {
+	return HandshakeEvent{
 		ConnectionID: 7,
 		Protocol:     767,
 		Host:         "lobby.testing.it",
 		Port:         25565,
-		NextState:    sdk.Login,
+		NextState:    Login,
 		ClientIP:     "192.0.2.10",
 	}
 }
 
-func testLoginEvent() sdk.LoginEvent {
-	return sdk.LoginEvent{
+func testLoginEvent() LoginEvent {
+	return LoginEvent{
 		ConnectionID: 7,
 		Username:     "Steve",
 		UUID:         "uuid-1",
@@ -27,36 +25,36 @@ func testLoginEvent() sdk.LoginEvent {
 	}
 }
 
-func allowHandshake(sdk.HandshakeEvent) (sdk.Decision, string) {
-	return sdk.Allow, ""
+func allowHandshake(HandshakeEvent) (Decision, string) {
+	return Allow, ""
 }
 
 func TestEmitWithoutSubscribers(t *testing.T) {
 	b := NewBus()
-	if d, p := b.Handshake.Emit(testHandshakeEvent()); d != sdk.Allow || p != "" {
+	if d, p := b.Handshake.Emit(testHandshakeEvent()); d != Allow || p != "" {
 		t.Fatalf("handshake = (%d, %q), want (allow, \"\")", d, p)
 	}
-	if d, p := b.Login.Emit(testLoginEvent()); d != sdk.Allow || p != "" {
+	if d, p := b.Login.Emit(testLoginEvent()); d != Allow || p != "" {
 		t.Fatalf("login = (%d, %q), want (allow, \"\")", d, p)
 	}
-	b.Disconnect.Emit(sdk.DisconnectEvent{})
+	b.Disconnect.Emit(DisconnectEvent{})
 }
 
 func TestHandshakeAllowAndOverride(t *testing.T) {
 	b := NewBus()
 	b.Handshake.Subscribe(allowHandshake)
-	b.Handshake.Subscribe(func(e sdk.HandshakeEvent) (sdk.Decision, string) {
+	b.Handshake.Subscribe(func(e HandshakeEvent) (Decision, string) {
 		if e.ConnectionID != 7 || e.Host != "lobby.testing.it" {
 			t.Errorf("event = %+v, fields not forwarded", e)
 		}
-		return sdk.OverrideBackend, "10.0.0.1:25566"
+		return OverrideBackend, "10.0.0.1:25566"
 	})
-	b.Handshake.Subscribe(func(sdk.HandshakeEvent) (sdk.Decision, string) {
-		return sdk.OverrideBackend, "10.0.0.2:25566"
+	b.Handshake.Subscribe(func(HandshakeEvent) (Decision, string) {
+		return OverrideBackend, "10.0.0.2:25566"
 	})
 
 	d, payload := b.Handshake.Emit(testHandshakeEvent())
-	if d != sdk.OverrideBackend {
+	if d != OverrideBackend {
 		t.Fatalf("decision = %d, want override", d)
 	}
 	if payload != "10.0.0.2:25566" {
@@ -67,21 +65,21 @@ func TestHandshakeAllowAndOverride(t *testing.T) {
 func TestDenyShortCircuits(t *testing.T) {
 	b := NewBus()
 	calls := 0
-	b.Login.Subscribe(func(sdk.LoginEvent) (sdk.Decision, string) {
+	b.Login.Subscribe(func(LoginEvent) (Decision, string) {
 		calls++
-		return sdk.OverrideBackend, "10.0.0.1:25566"
+		return OverrideBackend, "10.0.0.1:25566"
 	})
-	b.Login.Subscribe(func(sdk.LoginEvent) (sdk.Decision, string) {
+	b.Login.Subscribe(func(LoginEvent) (Decision, string) {
 		calls++
-		return sdk.Deny, "banned"
+		return Deny, "banned"
 	})
-	b.Login.Subscribe(func(sdk.LoginEvent) (sdk.Decision, string) {
+	b.Login.Subscribe(func(LoginEvent) (Decision, string) {
 		calls++
-		return sdk.Allow, ""
+		return Allow, ""
 	})
 
 	d, reason := b.Login.Emit(testLoginEvent())
-	if d != sdk.Deny || reason != "banned" {
+	if d != Deny || reason != "banned" {
 		t.Fatalf("got (%d, %q), want (deny, banned)", d, reason)
 	}
 	if calls != 2 {
@@ -94,7 +92,7 @@ func TestSubscribeNilIgnored(t *testing.T) {
 	b.Handshake.Subscribe(nil)
 	b.Login.Subscribe(nil)
 	b.Disconnect.Subscribe(nil)
-	if d, _ := b.Handshake.Emit(testHandshakeEvent()); d != sdk.Allow {
+	if d, _ := b.Handshake.Emit(testHandshakeEvent()); d != Allow {
 		t.Fatal("nil handler changed the decision")
 	}
 }
@@ -105,7 +103,7 @@ func TestDisconnectNotifiesAll(t *testing.T) {
 	var mu sync.Mutex
 	for _, name := range []string{"a", "b", "c"} {
 		name := name
-		b.Disconnect.Subscribe(func(e sdk.DisconnectEvent) {
+		b.Disconnect.Subscribe(func(e DisconnectEvent) {
 			if e.Username != "Steve" || e.Reason != "quit" {
 				t.Errorf("event = %+v, fields not forwarded", e)
 			}
@@ -114,7 +112,7 @@ func TestDisconnectNotifiesAll(t *testing.T) {
 			mu.Unlock()
 		})
 	}
-	b.Disconnect.Emit(sdk.DisconnectEvent{ConnectionID: 7, Username: "Steve", Reason: "quit"})
+	b.Disconnect.Emit(DisconnectEvent{ConnectionID: 7, Username: "Steve", Reason: "quit"})
 	if len(got) != 3 {
 		t.Fatalf("notified = %d, want 3", len(got))
 	}
@@ -129,8 +127,8 @@ func TestBusConcurrent(t *testing.T) {
 			defer wg.Done()
 			b.Handshake.Subscribe(allowHandshake)
 			_, _ = b.Handshake.Emit(testHandshakeEvent())
-			b.Disconnect.Subscribe(func(sdk.DisconnectEvent) {})
-			b.Disconnect.Emit(sdk.DisconnectEvent{})
+			b.Disconnect.Subscribe(func(DisconnectEvent) {})
+			b.Disconnect.Emit(DisconnectEvent{})
 		}()
 	}
 	wg.Wait()
