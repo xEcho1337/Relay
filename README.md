@@ -91,25 +91,43 @@ gofmt -w .
 ## Plugin development
 
 Plugin authors use `relay/sdk`, not the WASM ABI directly. A plugin registers
-typed handlers through `sdk.Registry`:
+typed handlers on an `sdk.Plugin` and exposes them with `sdk.Run`:
 
 ```go
-func Register(registry *sdk.Registry) {
-    registry.OnLogin(func(event sdk.LoginEvent) sdk.Result {
+var plugin = sdk.NewPlugin()
+
+func init() {
+    plugin.OnLogin(func(event *sdk.LoginEvent) {
         if event.Username == "TestUsername" {
-            return sdk.Result{Decision: sdk.Deny, Payload: "Username not valid"}
+            event.Deny(component.Text("Username not valid"))
+            return
         }
-        return sdk.Result{Decision: sdk.Allow}
+        // event.SetUsername("Steve")           // change the username
+        // event.SetBackend("127.0.0.1:25566")  // route this login elsewhere
     })
+
+    // plugin.OnHandshake(func(event *sdk.HandshakeEvent) {})
+    // plugin.OnDisconnect(func(event *sdk.DisconnectEvent) {})
+}
+
+func main() {
+    sdk.Run(plugin)
 }
 ```
 
-Make sure to compile your program with WASM:
-```bash
-GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o plugin.wasm .
+Make sure to compile your plugin with the following arguments and environment variables:
+```sh
+GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o myplugin.wasm .
 ```
 
-Drop your `.wasm` files inside the `plugins` folder generated at startup by Relay.
+Drop the resulting `.wasm` files in the plugin directory and start Relay.
+Relay loads every `.wasm` file in filename order. The directory defaults to
+`plugins` and can be overridden with `RELAY_PLUGIN_DIR`; Relay
+creates it on startup when it does not exist.
+
+```sh
+RELAY_PLUGIN_DIR=/path/to/plugins ./relay
+```
 
 ## Contributing
 
