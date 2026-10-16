@@ -16,7 +16,6 @@ backend and player events, and a container image for reproducible deployments.
 - [Roadmap](#roadmap)
 - [Development](#development)
 - [Contributing](#contributing)
-- [Security](#security)
 - [License](#license)
 
 ## Requirements
@@ -70,8 +69,8 @@ the handshake.
 
 ## Roadmap
 
-- [ ] Define a stable, versioned plugin API.
-- [ ] Add plugin discovery, configuration, lifecycle hooks, and isolation boundaries.
+- [X] Define a stable, versioned plugin API.
+- [X] Add plugin discovery, configuration, lifecycle hooks, and isolation boundaries.
 - [ ] Expose backend selection, connection, authentication, and disconnect events.
 - [ ] Provide a first-party Docker image with a mounted configuration directory.
 
@@ -89,7 +88,28 @@ Format Go files before opening a change:
 gofmt -w .
 ```
 
-The project keeps generated worlds, server logs, IDE metadata, and build artifacts out of version control through `.gitignore`.
+## Plugin development
+
+Plugin authors use `relay/sdk`, not the WASM ABI directly. A plugin registers
+typed handlers through `sdk.Registry`:
+
+```go
+func Register(registry *sdk.Registry) {
+    registry.OnLogin(func(event sdk.LoginEvent) sdk.Result {
+        if event.Username == "TestUsername" {
+            return sdk.Result{Decision: sdk.Deny, Payload: "Username not valid"}
+        }
+        return sdk.Result{Decision: sdk.Allow}
+    })
+}
+```
+
+Make sure to compile your program with WASM:
+```bash
+GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o plugin.wasm .
+```
+
+Drop your `.wasm` files inside the `plugins` folder generated at startup by Relay.
 
 ## Contributing
 

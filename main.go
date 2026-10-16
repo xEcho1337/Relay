@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net"
@@ -12,10 +13,23 @@ import (
 	"time"
 )
 
+const defaultPluginDirectory = "../workspace/plugins"
+
 var running = true
 
 func main() {
 	logging.Setup()
+	plugin.Init()
+
+	pluginDirectory := os.Getenv("RELAY_PLUGIN_DIR")
+	if pluginDirectory == "" {
+		pluginDirectory = defaultPluginDirectory
+	}
+
+	if _, err := plugin.LoadDirectory(context.Background(), pluginDirectory, plugin.DefaultBus); err != nil {
+		slog.Error("load plugins", "err", err)
+		os.Exit(1)
+	}
 
 	startTime := time.Now()
 	cfg, err := config.LoadConfig("config.yml")
@@ -23,6 +37,7 @@ func main() {
 		slog.Error("load config", "err", err)
 		os.Exit(1)
 	}
+
 	slog.Info("loaded config")
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Network.Port))
